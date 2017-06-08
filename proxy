@@ -23,17 +23,17 @@ Michael Fincham <michael.fincham@catalyst.net.nz>
 """
 
 from flask import Flask
+from flask import g
+from flask import request
 from flask import Response
 from flask import stream_with_context
-from flask import request
-from flask import g
 
 from werkzeug.exceptions import Forbidden, BadRequest
 
 from requests import Request, Session
 
-import json
 from functools import wraps
+import json
 
 app = Flask(__name__)
 
@@ -58,6 +58,8 @@ def json_response(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         response = f(*args, **kwargs)
+        if isinstance(response, Response): # pre-prepared responses get passed on whole
+            return response
         if hasattr(response, 'json'): # this is a proxied response from the backend
             status_code = response.status_code
             response = json_or_none(response)
@@ -74,12 +76,14 @@ def authenticate(f):
     """
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not request.json:
-            raise BadRequest
-        g.user = users.get(request.json.get('username', None), None)
-        g.username = request.json.pop('username', None)
-        if not g.user or request.json.pop('key', None) != g.user['key']:
-            raise Forbidden
+        auth = request.authorization
+        if not auth or auth.username not in users or not users[auth.username]['key'] == auth.password:
+            return Response(
+                'Access denied', 401,
+                {'WWW-Authenticate': 'Basic realm="PowerDNS API"'}
+            )
+        g.user = users[auth.username]
+        g.username = auth.username
         return f(*args, **kwargs)
     return decorated_function
 
@@ -111,12 +115,12 @@ def api():
     """
     return [
         {
-            "url": "/",
+            "url": "/api/v1",
             "version": "powerdns-auth-proxy"
         }
     ]
 
-@app.route('/zones', methods=['GET', 'POST'])
+@app.route('/api/v1/servers/localhost/zones', methods=['GET', 'POST'])
 @authenticate
 @json_response
 def zone_list():
@@ -134,7 +138,7 @@ def zone_list():
         request.json['account'] = g.username
         return proxy_to_backend('POST', 'zones', json.dumps(request.json))
 
-@app.route('/zones/<string:requested_zone>', methods=['GET', 'PUT', 'PATCH', 'DELETE'])
+@app.route('/api/v1/servers/localhost/zones/<string:requested_zone>', methods=['GET', 'PUT', 'PATCH', 'DELETE'])
 @authenticate
 @json_response
 def zone_detail(requested_zone):
@@ -160,7 +164,7 @@ def zone_detail(requested_zone):
     elif request.method == 'DELETE': # delete zone
         return proxy_to_backend('DELETE', 'zones/%s' % requested_zone, json.dumps(request.json))
 
-@app.route('/zones/<string:requested_zone>/notify', methods=['PUT'])
+@app.route('/api/v1/servers/localhost/zones/<string:requested_zone>/notify', methods=['PUT'])
 @authenticate
 @json_response
 def zone_notify(requested_zone):
