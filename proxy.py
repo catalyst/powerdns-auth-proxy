@@ -16,8 +16,8 @@
 """
 Authenticating proxy for PowerDNS.
 
-Implements the /zones PowerDNS API endpoint but with added "username" and "key"
-parameters. More information is available here: <https://doc.powerdns.com/md/httpapi/api_spec/>
+Implements a subset of the PowerDNS API with more flexible authentication and access control. 
+More information about the PowerDNS API is available here: <https://doc.powerdns.com/md/httpapi/api_spec/>
 
 Michael Fincham <michael.fincham@catalyst.net.nz>
 """
@@ -128,6 +128,26 @@ def api():
         {
             "url": "/api/v1",
             "version": "powerdns-auth-proxy"
+        }
+    ]
+
+@app.route('/api/v1/servers', methods=['GET'])
+@authenticate
+@json_response
+def server_list():
+    """
+    GET: Retrieve a list of servers which can be used.
+    """
+    # XXX: this should probably query the backend for the version number rather than having a static one here.
+    return [
+        {
+            'zones_url': '/api/v1/servers/localhost/zones{/zone}',
+            'config_url': '/api/v1/servers/localhost/config{/config_setting}',
+            'url': '/api/v1/servers/localhost',
+            'daemon_type': 'authoritative',
+            'version': 'powerdns-auth-proxy',
+            'type': 'Server',
+            'id': 'localhost'
         }
     ]
 
