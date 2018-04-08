@@ -131,6 +131,26 @@ def api():
         }
     ]
 
+@app.route('/api/v1/servers', methods=['GET'])
+@authenticate
+@json_response
+def server_list():
+    """
+    GET: Retrieve a list of servers which can be used.
+    """
+    # XXX: this should probably query the backend for the version number rather than having a static one here.
+    return [
+        {
+            'zones_url': '/api/v1/servers/localhost/zones{/zone}',
+            'config_url': '/api/v1/servers/localhost/config{/config_setting}',
+            'url': '/api/v1/servers/localhost',
+            'daemon_type': 'authoritative',
+            'version': 'powerdns-auth-proxy',
+            'type': 'Server',
+            'id': 'localhost'
+        }
+    ]
+
 @app.route('/api/v1/servers/localhost/zones', methods=['GET', 'POST'])
 @authenticate
 @json_response
