@@ -16,8 +16,8 @@
 """
 Authenticating proxy for PowerDNS.
 
-Implements the /zones PowerDNS API endpoint but with added "username" and "key"
-parameters. More information is available here: <https://doc.powerdns.com/md/httpapi/api_spec/>
+Implements a subset of the PowerDNS API with more flexible authentication and access control. 
+More information about the PowerDNS API is available here: <https://doc.powerdns.com/md/httpapi/api_spec/>
 
 Michael Fincham <michael.fincham@catalyst.net.nz>
 """
