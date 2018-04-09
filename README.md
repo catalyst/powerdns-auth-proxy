@@ -12,4 +12,4 @@ Either use HTTP Basic authentication or encode your username and password in the
 
 ## Client compatibility
 
-This proxy has been tested with the Terraform [PowerDNS Provider](https://www.terraform.io/docs/providers/powerdns/index.html).
+This proxy has been tested with the Terraform [PowerDNS provider](https://www.terraform.io/docs/providers/powerdns/index.html).
