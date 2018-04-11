@@ -136,7 +136,7 @@ def api():
 @json_response
 def server_list():
     """
-    GET: Retrieve a list of servers which can be used.
+    GET: Retrieve a list of servers which can be used. Terraform needs this to find the correct API URL to use.
     """
     # XXX: this should probably query the backend for the version number rather than having a static one here.
     return [
