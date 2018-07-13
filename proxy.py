@@ -62,8 +62,6 @@ users = {
 pdns_api_key = config.get('powerdns','api-key')
 pdns_api_url = config.get('powerdns','api-url')
 
-print(users)
-
 ## Decorators for views
 
 def json_request(f):
