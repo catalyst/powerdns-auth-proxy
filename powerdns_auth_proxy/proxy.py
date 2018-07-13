@@ -166,11 +166,14 @@ def zone_list():
     POST: Create a new zone for this account.
     """
     if request.method == 'GET':
-        zones = [zone for zone in json_or_none(proxy_to_backend('GET', 'zones')) if zone['account'] == g.username]
+        try:
+            zones = [zone for zone in json_or_none(proxy_to_backend('GET', 'zones')) if zone['account'] == g.username]
+        except TypeError:
+            zones = []
         return zones
     elif request.method == 'POST':
         requested_name = g.json.get('name', None)
-        if requested_name and not any(requested_name.lower().endswith(prefix.lower()) for prefix in g.user['allow-suffix-creation']):
+        if requested_name and not any(requested_name.lower().endswith(prefix.lower()) for prefix in (g.user['allow-suffix-creation'] if isinstance(g.user['allow-suffix-creation'], list) else [g.user['allow-suffix-creation']])):
                 raise Forbidden
         
         # override any keys specified in the configuration
@@ -180,7 +183,6 @@ def zone_list():
         # always override the account name with the right one for the logged in user
         g.json['account'] = g.username
 
-        print(g.json)
         return proxy_to_backend('POST', 'zones', json.dumps(g.json))
 
 @bp.route('/v1/servers/localhost/zones/<string:requested_zone>', methods=['GET', 'PUT', 'PATCH', 'DELETE'])
@@ -212,7 +214,7 @@ def zone_detail(requested_zone):
 @json_response
 def zone_notify(requested_zone):
     """
-    PUT: Queue a zone for notification to slaves.
+    PUT: Queue a zone for notification to replicas.
     """
     zone = json_or_none(proxy_to_backend('GET', 'zones/%s' % requested_zone))
     if zone and zone.get('account', None) != g.username:

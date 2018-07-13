@@ -61,7 +61,6 @@ def create_app(configuration=None):
 
     users = split_config_values(config, 'user:') 
     pdns = split_config_values(config, 'pdns')['']
-
     app.config.from_mapping(
         PDNS=pdns,
         USERS=users,
@@ -71,3 +70,4 @@ def create_app(configuration=None):
     app.register_blueprint(proxy.bp)
 
     return app
+
