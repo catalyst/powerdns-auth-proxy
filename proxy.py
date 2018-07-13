@@ -16,8 +16,8 @@
 """
 Authenticating proxy for PowerDNS.
 
-Implements a subset of the PowerDNS API with more flexible authentication and access control. 
-More information about the PowerDNS API is available here: <https://doc.powerdns.com/md/httpapi/api_spec/>
+Implements the PowerDNS API endpoint but with more flexible authentication.
+More information about the API specification is available here: <https://doc.powerdns.com/md/httpapi/api_spec/>
 
 Michael Fincham <michael.fincham@catalyst.net.nz>
 """
@@ -33,21 +33,50 @@ from werkzeug.exceptions import Forbidden, BadRequest
 from requests import Request, Session
 
 from functools import wraps
+import configparser
+import hmac
 import json
 
 app = Flask(__name__)
 
-pdns_api_key = 'password'
-pdns_api_url = 'http://127.0.0.1:8081/api/v1/servers/localhost'
+## Read in configuration
 
+config = configparser.ConfigParser()
+config.read("proxy.ini")
+
+# this turns:
+# [user:foo]
+# key=bar
+# baz=qux thud
+# in to:
+# {'foo': {'key': 'bar', 'baz': ['qux', 'thud']}}
 users = {
-    'example': {
-        'key': 'secret',
-        'suffixes': [
-            'example.org.',
-        ]
-    }
+    section[5:] : {
+        key: (value.split() if " " in value else value) 
+        for key,value in config.items(section)
+    } 
+    for section in config.sections() 
+    if section.startswith("user:")
 }
+
+pdns_api_key = config.get('powerdns','api-key')
+pdns_api_url = config.get('powerdns','api-url')
+
+print(users)
+
+## Decorators for views
+
+def json_request(f):
+    """
+    If the request contains valid JSON then store that in "g" to be used later. For compatbility with various things (like traefik), don't require the JSON content type.
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        g.json = request.get_json(silent=True, force=True)
+        if g.json is None:
+            g.json = {}
+        return f(*args, **kwargs)
+    return decorated_function
 
 def json_response(f):
     """
@@ -81,14 +110,21 @@ def authenticate(f):
         authentication_method = ''
 
         if 'X-API-Key' in request.headers:
-            username, password = request.headers['X-API-Key'].split(':', 1)
-            authentication_method = 'key'
+            try:
+                username, password = request.headers['X-API-Key'].split(':', 1)
+                authentication_method = 'key'
+            except:
+                return Response(
+                    'Access denied', 401,
+                    {'WWW-Authenticate': 'Basic realm="PowerDNS API"'}
+                )
+
         elif auth:
             username = auth.username
             password = auth.password
             authentication_method = 'basic'
             
-        if authentication_method not in ('key', 'basic') or username not in users or not users[username]['key'] == password:
+        if authentication_method not in ('key', 'basic') or username not in users or not hmac.compare_digest(users[username]['key'], password):
             return Response(
                 'Access denied', 401,
                 {'WWW-Authenticate': 'Basic realm="PowerDNS API"'}
@@ -97,6 +133,8 @@ def authenticate(f):
         g.username = username
         return f(*args, **kwargs)
     return decorated_function
+
+## Proxy helper methods
 
 def proxy_to_backend(method, path, form=None):
     """
@@ -118,16 +156,19 @@ def json_or_none(response):
     except:
         return None
 
+## Proxy views
+
 @app.route('/api', methods=['GET'])
 @json_response
 def api():
     """
-    GET: Make it clear that this proxy only implements a subset of the API.
+    GET: The version returned is "1" for compability but we add an extra field to show that this isn't the official PowerDNS API.
     """
     return [
         {
             "url": "/api/v1",
-            "version": "powerdns-auth-proxy"
+            "version": 1,
+            "compatibility": "PowerDNS auth proxy, PowerDNS API v1"
         }
     ]
 
@@ -136,23 +177,23 @@ def api():
 @json_response
 def server_list():
     """
-    GET: Retrieve a list of servers which can be used. Terraform needs this to find the correct API URL to use.
+    GET: Retrieve a list of servers which can be used.
     """
-    # XXX: this should probably query the backend for the version number rather than having a static one here.
     return [
         {
-            'zones_url': '/api/v1/servers/localhost/zones{/zone}',
-            'config_url': '/api/v1/servers/localhost/config{/config_setting}',
-            'url': '/api/v1/servers/localhost',
-            'daemon_type': 'authoritative',
-            'version': 'powerdns-auth-proxy',
-            'type': 'Server',
+            'zones_url': '/api/v1/servers/localhost/zones{/zone}', 
+            'config_url': '/api/v1/servers/localhost/config{/config_setting}', 
+            'url': '/api/v1/servers/localhost', 
+            'daemon_type': 'authoritative', 
+            'version': 'PowerDNS auth proxy', 
+            'type': 'Server', 
             'id': 'localhost'
         }
     ]
 
 @app.route('/api/v1/servers/localhost/zones', methods=['GET', 'POST'])
 @authenticate
+@json_request
 @json_response
 def zone_list():
     """
@@ -163,14 +204,15 @@ def zone_list():
         zones = [zone for zone in json_or_none(proxy_to_backend('GET', 'zones')) if zone['account'] == g.username]
         return zones
     elif request.method == 'POST':
-        requested_name = request.json.get('name', None)
-        if requested_name and not any(requested_name.lower().endswith(prefix.lower()) for prefix in g.user['suffixes']):
+        requested_name = g.json.get('name', None)
+        if requested_name and not any(requested_name.lower().endswith(prefix.lower()) for prefix in g.user['allow-suffix-creation']):
                 raise Forbidden
-        request.json['account'] = g.username
-        return proxy_to_backend('POST', 'zones', json.dumps(request.json))
+        g.json['account'] = g.username
+        return proxy_to_backend('POST', 'zones', json.dumps(g.json))
 
 @app.route('/api/v1/servers/localhost/zones/<string:requested_zone>', methods=['GET', 'PUT', 'PATCH', 'DELETE'])
 @authenticate
+@json_request
 @json_response
 def zone_detail(requested_zone):
     """
@@ -186,14 +228,11 @@ def zone_detail(requested_zone):
     if request.method == 'GET': # get metadata
         return zone
     elif request.method == 'PATCH': # update rrsets
-        return proxy_to_backend('PATCH', 'zones/%s' % requested_zone, json.dumps(request.json))
+        return proxy_to_backend('PATCH', 'zones/%s' % requested_zone, json.dumps(g.json))
     elif request.method == 'PUT': # update metadata
-        requested_name = request.json.get('name', None)
-        if requested_name and not any(requested_name.lower().endswith(prefix.lower()) for prefix in g.user['suffixes']):
-                raise Forbidden
-        return proxy_to_backend('PUT', 'zones/%s' % requested_zone, json.dumps(request.json))
+        return proxy_to_backend('PUT', 'zones/%s' % requested_zone, json.dumps(g.json))
     elif request.method == 'DELETE': # delete zone
-        return proxy_to_backend('DELETE', 'zones/%s' % requested_zone, json.dumps(request.json))
+        return proxy_to_backend('DELETE', 'zones/%s' % requested_zone, json.dumps(g.json))
 
 @app.route('/api/v1/servers/localhost/zones/<string:requested_zone>/notify', methods=['PUT'])
 @authenticate
