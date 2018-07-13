@@ -1,32 +1,4 @@
-#!/usr/bin/python3
-# Copyright (c) 2017 Catalyst.net Ltd
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-"""
-Authenticating proxy for PowerDNS.
-
-Implements the PowerDNS API endpoint but with more flexible authentication.
-More information about the API specification is available here: <https://doc.powerdns.com/md/httpapi/api_spec/>
-
-Michael Fincham <michael.fincham@catalyst.net.nz>
-"""
-
-from flask import Flask
-from flask import g
-from flask import request
-from flask import Response
-from flask import stream_with_context
+from flask import Blueprint, Response, g, request, stream_with_context
 
 from werkzeug.exceptions import Forbidden, BadRequest
 
@@ -37,30 +9,7 @@ import configparser
 import hmac
 import json
 
-app = Flask(__name__)
-
-## Read in configuration
-
-config = configparser.ConfigParser()
-config.read("proxy.ini")
-
-# this turns:
-# [user:foo]
-# key=bar
-# baz=qux thud
-# in to:
-# {'foo': {'key': 'bar', 'baz': ['qux', 'thud']}}
-users = {
-    section[5:] : {
-        key: (value.split() if " " in value else value) 
-        for key,value in config.items(section)
-    } 
-    for section in config.sections() 
-    if section.startswith("user:")
-}
-
-pdns_api_key = config.get('powerdns','api-key')
-pdns_api_url = config.get('powerdns','api-url')
+bp = Blueprint('proxy', __name__, url_prefix='/api')
 
 ## Decorators for views
 
@@ -156,7 +105,7 @@ def json_or_none(response):
 
 ## Proxy views
 
-@app.route('/api', methods=['GET'])
+@bp.route('/', methods=['GET'])
 @json_response
 def api():
     """
@@ -170,7 +119,7 @@ def api():
         }
     ]
 
-@app.route('/api/v1/servers', methods=['GET'])
+@bp.route('/v1/servers', methods=['GET'])
 @authenticate
 @json_response
 def server_list():
@@ -189,7 +138,7 @@ def server_list():
         }
     ]
 
-@app.route('/api/v1/servers/localhost/zones', methods=['GET', 'POST'])
+@bp.route('/v1/servers/localhost/zones', methods=['GET', 'POST'])
 @authenticate
 @json_request
 @json_response
@@ -208,7 +157,7 @@ def zone_list():
         g.json['account'] = g.username
         return proxy_to_backend('POST', 'zones', json.dumps(g.json))
 
-@app.route('/api/v1/servers/localhost/zones/<string:requested_zone>', methods=['GET', 'PUT', 'PATCH', 'DELETE'])
+@bp.route('/v1/servers/localhost/zones/<string:requested_zone>', methods=['GET', 'PUT', 'PATCH', 'DELETE'])
 @authenticate
 @json_request
 @json_response
@@ -232,7 +181,7 @@ def zone_detail(requested_zone):
     elif request.method == 'DELETE': # delete zone
         return proxy_to_backend('DELETE', 'zones/%s' % requested_zone, json.dumps(g.json))
 
-@app.route('/api/v1/servers/localhost/zones/<string:requested_zone>/notify', methods=['PUT'])
+@bp.route('/v1/servers/localhost/zones/<string:requested_zone>/notify', methods=['PUT'])
 @authenticate
 @json_response
 def zone_notify(requested_zone):
@@ -245,5 +194,3 @@ def zone_notify(requested_zone):
 
     return proxy_to_backend('PUT', 'zones/%s/notify' % requested_zone, None)
 
-if __name__ == '__main__':
-    app.run()
