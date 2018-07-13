@@ -26,44 +26,48 @@ from flask import Flask
 
 import configparser
 
-def create_app(test_config=None):
+def split_config_values(config, section_pattern):
+    """
+    This turns:
+    
+    [user:foo]
+    key=bar
+    baz=qux thud
+    
+    In to:
+    
+    {'foo': {'key': 'bar', 'baz': ['qux', 'thud']}}
+    """
+
+    return {
+        section[len(section_pattern):] : {
+            key.lower(): (value.split() if " " in value else value) 
+            for key, value in config.items(section)
+        } 
+        for section in config.sections() 
+        if section.startswith(section_pattern)
+    }
+
+
+def create_app(configuration=None):
     app = Flask(__name__, instance_relative_config=True)
 
     config = configparser.ConfigParser()
-    config.read("proxy.ini")
 
-    # this turns:
-    #
-    # [user:foo]
-    # key=bar
-    # baz=qux thud
-    #
-    # in to:
-    #
-    # {'foo': {'key': 'bar', 'baz': ['qux', 'thud']}}
-    users = {
-        section[5:] : {
-            key: (value.split() if " " in value else value) 
-            for key,value in config.items(section)
-        } 
-        for section in config.sections() 
-        if section.startswith("user:")
-    }
+    if configuration:
+        config.read_string(configuration)
+    else:
+        config.read("proxy.ini")
 
-    pdns_api_key = config.get('powerdns','api-key')
-    pdns_api_url = config.get('powerdns','api-url')
-    
+    users = split_config_values(config, 'user:') 
+    pdns = split_config_values(config, 'pdns')['']
+
     app.config.from_mapping(
-        PDNS_API_KEY=pdns_api_key,
-        PDNS_API_URL=pdns_api_url,
+        PDNS=pdns,
         USERS=users,
     )
     
-    if test_config is not None:
-        app.config.from_mapping(test_config)
-
     from . import proxy
     app.register_blueprint(proxy.bp)
 
     return app
-
