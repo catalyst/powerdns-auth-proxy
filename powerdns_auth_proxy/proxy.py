@@ -1,4 +1,4 @@
-from flask import Blueprint, Response, g, request, stream_with_context
+from flask import Blueprint, current_app, Response, g, request, stream_with_context
 
 from werkzeug.exceptions import Forbidden, BadRequest
 
@@ -71,12 +71,12 @@ def authenticate(f):
             password = auth.password
             authentication_method = 'basic'
             
-        if authentication_method not in ('key', 'basic') or username not in users or not hmac.compare_digest(users[username]['key'], password):
+        if authentication_method not in ('key', 'basic') or username not in current_app.config['USERS'] or not hmac.compare_digest(current_app.config['USERS'][username]['key'], password):
             return Response(
                 'Access denied', 401,
                 {'WWW-Authenticate': 'Basic realm="PowerDNS API"'}
             )
-        g.user = users[username]
+        g.user = current_app.config['USERS'][username]
         g.username = username
         return f(*args, **kwargs)
     return decorated_function
@@ -88,9 +88,9 @@ def proxy_to_backend(method, path, form=None):
     Dispatch a particular request to the PowerDNS API.
     """
     s = Session()
-    req = Request(method, "%s/%s" % (pdns_api_url, path), data=form)
+    req = Request(method, "%s/%s" % (current_app.config['PDNS'].get('api-url', 'http://localhost:8081'), path), data=form)
     req = req.prepare()
-    req.headers['X-API-Key'] = pdns_api_key
+    req.headers['X-API-Key'] = current_app.config['PDNS'].get('api-key', '')
     req.headers['Content-Type'] = 'application/json'
     return s.send(req)
 
@@ -138,6 +138,24 @@ def server_list():
         }
     ]
 
+@bp.route('/v1/servers/localhost/config', methods=['GET'])
+@authenticate
+@json_response
+def configuration():
+    """
+    GET: Retrieve a list of configuration items for the server. Currently returns empty, as we don't want to expose the global backend configuration.
+    """
+    return []
+
+@bp.route('/v1/servers/localhost/statistics', methods=['GET'])
+@authenticate
+@json_response
+def statistics():
+    """
+    GET: Retrieve a list of statistics about the server. Currently returns empty, as we don't want to expose the global backend statistics.
+    """
+    return []
+
 @bp.route('/v1/servers/localhost/zones', methods=['GET', 'POST'])
 @authenticate
 @json_request
@@ -154,7 +172,15 @@ def zone_list():
         requested_name = g.json.get('name', None)
         if requested_name and not any(requested_name.lower().endswith(prefix.lower()) for prefix in g.user['allow-suffix-creation']):
                 raise Forbidden
+        
+        # override any keys specified in the configuration
+        for key, value in {key[18:]:value for key, value in current_app.config['PDNS'].items() if key.startswith('override-creation-')}.items():
+            g.json[key] = value
+        
+        # always override the account name with the right one for the logged in user
         g.json['account'] = g.username
+
+        print(g.json)
         return proxy_to_backend('POST', 'zones', json.dumps(g.json))
 
 @bp.route('/v1/servers/localhost/zones/<string:requested_zone>', methods=['GET', 'PUT', 'PATCH', 'DELETE'])
@@ -193,4 +219,3 @@ def zone_notify(requested_zone):
         raise Forbidden
 
     return proxy_to_backend('PUT', 'zones/%s/notify' % requested_zone, None)
-
