@@ -36,9 +36,9 @@ def client():
     [pdns]
     api-key = 7128ae9eb680a14390ee22a988a9d01a
     api-url = http://127.0.0.1:18081/api/v1/servers/localhost
-    override-creation-soa_edit_api = INCEPTION-INCREMENT
-    override-creation-nameservers = ns1.example.com. ns2.example.com. ns3.example.com. ns4.example.com.
-    override-creation-kind = MASTER
+    override-soa_edit_api = INCEPTION-INCREMENT
+    override-nameservers = ns1.example.com. ns2.example.com. ns3.example.com. ns4.example.com.
+    override-kind = MASTER
 
     [user:demo-example-org]
     key = dd70d1b0eccd79a0cf5d79ddf6672dce
@@ -212,7 +212,6 @@ def test_api_zone_create_override(client):
     response = client.get('/api/v1/servers/localhost/zones/example.org.', headers=api_key_header(client))
     assert response.status_code < 400
     json = response.get_json()
-    print(json)
     assert json['name'] == 'example.org.'
     assert json['account'] == 'demo-example-org'
     assert json['soa_edit_api'] == 'INCEPTION-INCREMENT'
@@ -231,9 +230,130 @@ def test_api_zone_put(client):
     response = client.post('/api/v1/servers/localhost/zones', headers=api_key_header(client), json={"masters": [], "name": "example.org.", "nameservers": ["ns1.example.org."], "kind": "MASTER", "soa_edit_api": "INCEPTION-INCREMENT"})
     assert response.status_code < 400
 
-    # update the zone's metadata
+    # try and update a zone that belongs to another user, should return exactly 403 to prevent enumeration
     json = {
-        "kind": "NATIVE",
+        "kind": "NATIVE", 
+        "account": "someone-else",
+    }
+    response = client.put('/api/v1/servers/localhost/zones/example.net.', headers=api_key_header(client), json=json)
+    assert response.status_code == 403
+
+    # try an update which will be overriden
+    json = {
+        "kind": "NATIVE", 
+        "account": "someone-else",
     }
     response = client.put('/api/v1/servers/localhost/zones/example.org.', headers=api_key_header(client), json=json)
+    assert response.status_code < 400
+    
+    # retrieve zone that was updated
+    response = client.get('/api/v1/servers/localhost/zones/example.org.', headers=api_key_header(client))
+    assert response.status_code < 400
+    json = response.get_json()
+    assert json['kind'] == 'Master'
+    assert json['account'] == 'demo-example-org'
+    
+    # try and evade the overriding of update parameters
+    json = {
+        " kind ": "NATIVE", 
+        "aCcOuNt": "someone-else",
+    }
+    response = client.put('/api/v1/servers/localhost/zones/example.org.', headers=api_key_header(client), json=json)
+    assert response.status_code < 400
+    
+    # retrieve zone that was updated
+    response = client.get('/api/v1/servers/localhost/zones/example.org.', headers=api_key_header(client))
+    assert response.status_code < 400
+    json = response.get_json()
+    assert json['kind'] == 'Master'
+    assert json['account'] == 'demo-example-org'
+
+    # temporarily disable overrides for kind and make sure it is possible to update
+    del client.application.config['PDNS']['override-kind']
+    
+    # try an update which should now succeed
+    json = {
+        "kind": "NATIVE", 
+        "account": "someone-else",
+    }
+    response = client.put('/api/v1/servers/localhost/zones/example.org.', headers=api_key_header(client), json=json)
+    assert response.status_code < 400
+    
+    # retrieve zone that was updated
+    response = client.get('/api/v1/servers/localhost/zones/example.org.', headers=api_key_header(client))
+    assert response.status_code < 400
+    json = response.get_json()
+    assert json['kind'] == 'Native'
+    assert json['account'] == 'demo-example-org'
+
+def test_api_zone_patch(client):
+    # create a zone to use for testing
+    response = client.post('/api/v1/servers/localhost/zones', headers=api_key_header(client), json={"masters": [], "name": "example.org.", "nameservers": ["ns1.example.org."], "kind": "MASTER", "soa_edit_api": "INCEPTION-INCREMENT"})
+    assert response.status_code < 400
+    
+    # data to be added to the zone
+    payload = {
+        "rrsets": [
+            {
+                "type": "TXT", 
+                "changetype": "REPLACE",
+                "name": "test.example.org.",
+                "ttl": 3600, 
+                "records": [
+                    {
+                        "priority": 0,
+                        "type": "TXT",
+                        "content": "\"This is a test!\"",
+                        "disabled": False,
+                        "set-ptr": False,
+                        "name": "test.example.org."
+                    }
+                ],
+            }
+        ]
+    }
+
+    # try and patch a zone that belongs to another user, should return exactly 403 to prevent enumeration
+    response = client.patch('/api/v1/servers/localhost/zones/example.net.', headers=api_key_header(client), json=payload)
+    assert response.status_code == 403
+
+    # patch a zone that in our account
+    response = client.patch('/api/v1/servers/localhost/zones/example.org.', headers=api_key_header(client), json=payload)
+    assert response.status_code < 400
+    
+    # retrieve zone that was updated
+    response = client.get('/api/v1/servers/localhost/zones/example.org.', headers=api_key_header(client))
+    assert response.status_code < 400
+    json = response.get_json()
+    
+    # check that the TXT record was properly added
+    assert 'rrsets' in json
+    found_txt = False
+    for m in json['rrsets']:
+        if m['type'] == 'TXT':
+            assert m['records'][0]['content'] == "\"This is a test!\""
+            found_txt = True
+    assert found_txt is True
+
+    # make the patch invalid (the TXT payload needs to have quotes around it for this to work)
+    payload['rrsets'][0]['records'][0]['content'] = 'Invalid'
+
+    # try and apply the invalid patch
+    response = client.patch('/api/v1/servers/localhost/zones/example.org.', headers=api_key_header(client), json=payload)
+    assert response.status_code > 400
+    json = response.get_json()
+    # ensure that errors from the backend are properly passed through
+    assert "not in expected format" in json['error'].lower()
+
+def test_api_zone_notify(client):
+    # create a zone to use for testing
+    response = client.post('/api/v1/servers/localhost/zones', headers=api_key_header(client), json={"masters": [], "name": "example.org.", "nameservers": ["ns1.example.org."], "kind": "MASTER", "soa_edit_api": "INCEPTION-INCREMENT"})
+    assert response.status_code < 400
+
+    # try and notify a zone that belongs to another user, should return exactly 403 to prevent enumeration
+    response = client.put('/api/v1/servers/localhost/zones/example.net./notify', headers=api_key_header(client))
+    assert response.status_code == 403
+    
+    # this notification should work
+    response = client.put('/api/v1/servers/localhost/zones/example.org./notify', headers=api_key_header(client))
     assert response.status_code < 400

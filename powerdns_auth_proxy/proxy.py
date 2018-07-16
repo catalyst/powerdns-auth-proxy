@@ -3,6 +3,7 @@ from flask import Blueprint, current_app, Response, g, request, stream_with_cont
 from werkzeug.exceptions import Forbidden, BadRequest
 
 from requests import Request, Session
+from requests.structures import CaseInsensitiveDict
 
 from functools import wraps
 import configparser
@@ -19,9 +20,9 @@ def json_request(f):
     """
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        g.json = request.get_json(silent=True, force=True)
+        g.json = CaseInsensitiveDict(request.get_json(silent=True, force=True))
         if g.json is None:
-            g.json = {}
+            g.json = CaseInsensitiveDict()
         return f(*args, **kwargs)
     return decorated_function
 
@@ -38,7 +39,7 @@ def json_response(f):
             return response
         if hasattr(response, 'json'): # this is a proxied response from the backend
             status_code = response.status_code
-            response = json_or_none(response)
+            response = json.dumps(json_or_none(response))
         else: # or just a regular object to serialise
             status_code = 200
             response = json.dumps(response)
@@ -82,6 +83,19 @@ def authenticate(f):
     return decorated_function
 
 ## Proxy helper methods
+
+def sanitise_metadata_updates(json, config):
+    """
+    Ensure that the given json contains only keys that the user is allowed to update.
+    """
+    # override any keys specified in the configuration
+    for key, value in {key[9:]:value for key, value in config.items() if key.lower().startswith('override-')}.items():
+        json[key] = value
+    
+    # always override the account name with the right one for the logged in user
+    json['account'] = g.username
+    
+    return json
 
 def proxy_to_backend(method, path, form=None):
     """
@@ -176,14 +190,8 @@ def zone_list():
         if requested_name and not any(requested_name.lower().endswith(prefix.lower()) for prefix in (g.user['allow-suffix-creation'] if isinstance(g.user['allow-suffix-creation'], list) else [g.user['allow-suffix-creation']])):
                 raise Forbidden
         
-        # override any keys specified in the configuration
-        for key, value in {key[18:]:value for key, value in current_app.config['PDNS'].items() if key.startswith('override-creation-')}.items():
-            g.json[key] = value
-        
-        # always override the account name with the right one for the logged in user
-        g.json['account'] = g.username
-
-        return proxy_to_backend('POST', 'zones', json.dumps(g.json))
+        g.json = sanitise_metadata_updates(g.json, current_app.config['PDNS'])
+        return proxy_to_backend('POST', 'zones', json.dumps(dict(g.json)))
 
 @bp.route('/v1/servers/localhost/zones/<string:requested_zone>', methods=['GET', 'PUT', 'PATCH', 'DELETE'])
 @authenticate
@@ -203,11 +211,12 @@ def zone_detail(requested_zone):
     if request.method == 'GET': # get metadata
         return zone
     elif request.method == 'PATCH': # update rrsets
-        return proxy_to_backend('PATCH', 'zones/%s' % requested_zone, json.dumps(g.json))
+        return proxy_to_backend('PATCH', 'zones/%s' % requested_zone, json.dumps(dict(g.json)))
     elif request.method == 'PUT': # update metadata
-        return proxy_to_backend('PUT', 'zones/%s' % requested_zone, json.dumps(g.json))
+        g.json = sanitise_metadata_updates(g.json, current_app.config['PDNS'])
+        return proxy_to_backend('PUT', 'zones/%s' % requested_zone, json.dumps(dict(g.json)))
     elif request.method == 'DELETE': # delete zone
-        return proxy_to_backend('DELETE', 'zones/%s' % requested_zone, json.dumps(g.json))
+        return proxy_to_backend('DELETE', 'zones/%s' % requested_zone, json.dumps(dict(g.json)))
 
 @bp.route('/v1/servers/localhost/zones/<string:requested_zone>/notify', methods=['PUT'])
 @authenticate
