@@ -11,7 +11,7 @@ Future versions of this software will also support per-RRset ACLs.
 The proxy expects to read a `proxy.ini` file which defines ACLs, for instance:
 
 ````
-[powerdns]
+[pdns]
 api-key = 7128ae9eb680a14390ee22a988a9d01a
 api-url = http://127.0.0.1:8081/api/v1/servers/localhost
 override-soa_edit_api = INCEPTION-INCREMENT
