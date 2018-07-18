@@ -18,7 +18,8 @@ override-soa_edit_api = INCEPTION-INCREMENT
 override-nameservers = ns1.example.com. ns2.example.com. ns3.example.com. ns4.example.com.
 override-kind = Master
 
-# This user will be able to create a zone called "example.org." if it doesn't already exist.
+# This user will be able to create a zone called "example.org." if it doesn't already exist, and
+# then modify the records in that zone only.
 [user:demo-example-org]
 key = dd70d1b0eccd79a0cf5d79ddf6672dce
 allow-suffix-creation = example.org.
