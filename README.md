@@ -46,9 +46,17 @@ autorestart=true
 
 ## Running tests
 
-The tests expect to be run on a Debian or Ubuntu system using the official PowerDNS 4.1.x upstream packages. You'll need `pytest` and `pytest-flask` installed, as well as the `pdns-server` and `pdns-backend-sqlite3` OS packages.
+### Setup
 
-You can then run tests by running `pytest -v` inside the source directory.
+* Ubuntu / Debian
+
+  The officially supported system for testing is Debian or Ubuntu. To start, install the the official PowerDNS 4.1.x upstream packages: `pdns-server` and `pdns-backend-sqlite3`.
+
+* Arch
+
+  The tests can also be run on Arch Linux. Install the `powerdns` package.
+
+Additonally a few python modules need to be installed to run the tests (mainly `pytest`): `pip install -r requirements-dev.txt`. You can then run tests by running `pytest -v` inside the source directory.
 
 ## Authenticating
 
