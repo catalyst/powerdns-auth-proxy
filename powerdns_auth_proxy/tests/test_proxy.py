@@ -2,6 +2,7 @@ from contextlib import closing
 import base64
 import json
 import os
+import os.path
 import subprocess
 import tempfile
 import time
@@ -67,9 +68,19 @@ def client():
     app = create_app(test_config)
     app.config['TESTING'] = True
 
+
+    ALL_SCHEMA_PATHS = [
+        '/usr/share/doc/pdns-backend-sqlite3/schema.sqlite3.sql',
+        '/usr/share/doc/powerdns/schema.sqlite3.sql',
+    ]
+    schema_paths = list(filter(os.path.exists, ALL_SCHEMA_PATHS))
+
+    if not schema_paths:
+        raise Exception('Unsupported OS. Cannot find example sqlite schema. Looked in: ' + ':'.join(ALL_SCHEMA_PATHS))
+
     # create an empty database from the supplied schema
     with closing(sqlite3.connect(pdns_db_path)) as db:
-        with app.open_resource('/usr/share/doc/pdns-backend-sqlite3/schema.sqlite3.sql', mode='r') as f:
+        with app.open_resource(schema_paths[0], mode='r') as f:
             db.cursor().executescript(f.read())
         db.execute("INSERT INTO domains (name, type, account) VALUES ('example.net', 'MASTER', 'nobody');") # create a domain that the demo user can't read later
         db.commit()
