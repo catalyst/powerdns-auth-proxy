@@ -187,7 +187,15 @@ def zone_list():
         return zones
     elif request.method == 'POST':
         requested_name = g.json.get('name', None)
-        if requested_name and not any(requested_name.lower().endswith(prefix.lower()) for prefix in (g.user['allow-suffix-creation'] if isinstance(g.user['allow-suffix-creation'], list) else [g.user['allow-suffix-creation']])):
+        if 'allow-suffix-creation' in g.user:
+            allowed_suffixes = g.user['allow-suffix-creation'] if isinstance(g.user['allow-suffix-creation'], list) else [g.user['allow-suffix-creation']]
+            allowed = False
+            for suffix in allowed_suffixes:
+                if suffix.startswith('.') and requested_name.lower().endswith(suffix.lower()):
+                    allowed = True
+                elif not suffix.startswith('.') and requested_name.lower() == suffix.lower():
+                    allowed = True
+            if allowed != True:
                 raise Forbidden
         
         g.json = sanitise_metadata_updates(g.json, current_app.config['PDNS'])

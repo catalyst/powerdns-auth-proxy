@@ -43,7 +43,11 @@ def client():
 
     [user:demo-example-org]
     key = dd70d1b0eccd79a0cf5d79ddf6672dce
-    allow-suffix-creation = example.org.
+    allow-suffix-creation = example.org. .example.test.
+    
+    [user:demo-example-net]
+    key = a70f4f5fe78ea2e89b53c8b3ee133fdf
+    allow-suffix-creation = example.net.
     """
 
     pdns_db_file, pdns_db_path = tempfile.mkstemp()
@@ -147,8 +151,12 @@ def test_api_auth(client):
         assert response.status_code > 400
 
 def test_api_zone_create(client):
-    # zone that the user is not allowed to create
+    # zone that the user is not allowed to create because it is not listed at all
     response = client.post('/api/v1/servers/localhost/zones', headers=api_key_header(client), json={"masters": [], "name": "example.com.", "nameservers": ["ns1.example.org."], "kind": "MASTER", "soa_edit_api": "INCEPTION-INCREMENT"})
+    assert response.status_code > 400
+
+    # zone that the user is not allowed to create but which does share a common prefix with one they can create
+    response = client.post('/api/v1/servers/localhost/zones', headers=api_key_header(client), json={"masters": [], "name": "fooexample.org.", "nameservers": ["ns1.example.org."], "kind": "MASTER", "soa_edit_api": "INCEPTION-INCREMENT"})
     assert response.status_code > 400
 
     # zone belonging to another user
@@ -161,6 +169,14 @@ def test_api_zone_create(client):
     
     # zone already exists, expected to fail
     response = client.post('/api/v1/servers/localhost/zones', headers=api_key_header(client), json={"masters": [], "name": "example.org.", "nameservers": ["ns1.example.org."], "kind": "MASTER", "soa_edit_api": "INCEPTION-INCREMENT"})
+    assert response.status_code > 400
+
+    # suffix matching a wildcard domain
+    response = client.post('/api/v1/servers/localhost/zones', headers=api_key_header(client), json={"masters": [], "name": "bar.example.test.", "nameservers": ["ns1.example.org."], "kind": "MASTER", "soa_edit_api": "INCEPTION-INCREMENT"})
+    assert response.status_code < 400
+
+    # disallow suffix on non-wildcard domain
+    response = client.post('/api/v1/servers/localhost/zones', headers=api_key_header(client), json={"masters": [], "name": "bar.example.org.", "nameservers": ["ns1.example.org."], "kind": "MASTER", "soa_edit_api": "INCEPTION-INCREMENT"})
     assert response.status_code > 400
 
 def test_api_zone_list(client):
