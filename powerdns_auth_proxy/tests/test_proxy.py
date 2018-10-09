@@ -19,14 +19,14 @@ def api_key_header(client):
     """
     Return a valid header for the X-API-Key authentication method.
     """
-    user, user_data = list(client.application.config['USERS'].items())[0]
+    user, user_data = sorted(list(client.application.config['USERS'].items()))[-1]
     return {'X-API-Key': "%s:%s" % (user, user_data['key'])}
 
 def basic_auth_header(client):
     """
     Return a valid header for the Basic authentication method.
     """
-    user, user_data = list(client.application.config['USERS'].items())[0]
+    user, user_data = sorted(list(client.application.config['USERS'].items()))[-1]
     key = user_data['key']
     encoded = base64.b64encode(("%s:%s" % (user, key)).encode('ascii')).decode('ascii')
     return {'Authorization': "Basic %s" % (encoded, )}
