@@ -26,25 +26,26 @@ from flask import Flask
 
 import configparser
 
+
 def split_config_values(config, section_pattern):
     """
     This turns:
-    
+
     [user:foo]
     key=bar
     baz=qux thud
-    
+
     In to:
-    
+
     {'foo': {'key': 'bar', 'baz': ['qux', 'thud']}}
     """
 
     return {
-        section[len(section_pattern):] : {
-            key.lower(): (value.split() if " " in value else value) 
+        section[len(section_pattern):]: {
+            key.lower(): (value.split() if " " in value else value)
             for key, value in config.items(section)
-        } 
-        for section in config.sections() 
+        }
+        for section in config.sections()
         if section.startswith(section_pattern)
     }
 
@@ -52,22 +53,24 @@ def split_config_values(config, section_pattern):
 def create_app(configuration=None):
     app = Flask(__name__, instance_relative_config=True)
 
-    config = configparser.ConfigParser()
+    config = configparser.ConfigParser(interpolation=None)
 
     if configuration:
         config.read_string(configuration)
     else:
         config.read("proxy.ini")
 
-    users = split_config_values(config, 'user:') 
+    users = split_config_values(config, 'user:')
     pdns = split_config_values(config, 'pdns')['']
+    ldap = split_config_values(config, 'ldap')['']
+
     app.config.from_mapping(
         PDNS=pdns,
         USERS=users,
+        LDAP=ldap,
     )
-    
+
     from . import proxy
     app.register_blueprint(proxy.bp)
 
     return app
-
