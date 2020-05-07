@@ -1,6 +1,6 @@
 from flask import Blueprint, current_app, Response, g, request, stream_with_context
 
-from werkzeug.exceptions import Forbidden, BadRequest
+from werkzeug.exceptions import Forbidden, BadRequest, NotFound
 
 from requests import Request, Session
 from requests.structures import CaseInsensitiveDict
@@ -11,6 +11,18 @@ import hmac
 import json
 
 bp = Blueprint('proxy', __name__, url_prefix='/api')
+
+servers = [
+    {
+        'zones_url': '/api/v1/servers/localhost/zones{/zone}',
+        'config_url': '/api/v1/servers/localhost/config{/config_setting}',
+        'url': '/api/v1/servers/localhost',
+        'daemon_type': 'authoritative',
+        'version': 'PowerDNS auth proxy',
+        'type': 'Server',
+        'id': 'localhost'
+    }
+]
 
 ## Decorators for views
 
@@ -140,17 +152,19 @@ def server_list():
     """
     GET: Retrieve a list of servers which can be used.
     """
-    return [
-        {
-            'zones_url': '/api/v1/servers/localhost/zones{/zone}', 
-            'config_url': '/api/v1/servers/localhost/config{/config_setting}', 
-            'url': '/api/v1/servers/localhost', 
-            'daemon_type': 'authoritative', 
-            'version': 'PowerDNS auth proxy', 
-            'type': 'Server', 
-            'id': 'localhost'
-        }
-    ]
+    return servers
+
+@bp.route('/v1/servers/<string:server_id>', methods=['GET'])
+@authenticate
+@json_response
+def server_object(server_id):
+    """
+    GET: Retrieve a specific server.
+    """
+    try:
+        return next(server for server in servers if server['id'] == server_id)
+    except StopIteration:
+        raise NotFound
 
 @bp.route('/v1/servers/localhost/config', methods=['GET'])
 @authenticate
