@@ -16,8 +16,8 @@ jobs:
     - uses: actions/checkout@v2
     - name: Install dependencies
       run: |
-        apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install --yes --quiet pdns-server pdns-backend-sqlite3 python3 python3-pip supervisor
+        apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install --yes --quiet pdns-server pdns-backend-sqlite3 python3 python3-pip
         pip3 install -r requirements.txt -r requirements-dev.txt
     - name: Test with pytest
       run: |
-        pytest -v
+        python3 -m pytest -v
