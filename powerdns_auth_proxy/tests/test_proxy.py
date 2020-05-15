@@ -64,6 +64,7 @@ def client():
         "--gsqlite3-database=%s" % pdns_db_path,
         "--default-soa-name=ns1.example.org",
         "--default-soa-mail=dns.example.org",
+        "--webserver=yes",
         "--webserver-port=18081",
         "--api=yes",
         "--api-key=7128ae9eb680a14390ee22a988a9d01a",
