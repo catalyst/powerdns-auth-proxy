@@ -1,14 +1,11 @@
-# This workflow will install Python dependencies, run tests and lint with a single version of Python
-# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
-
-name: Python application
+name: Lint & Test
 
 on:
   - push
   - pull_request
 
 jobs:
-  build:
+  test:
 
     runs-on: ubuntu-16.04
 
@@ -21,3 +18,20 @@ jobs:
     - name: Test with pytest
       run: |
         python3 -m pytest -v
+  lint:
+
+    runs-on: ubuntu-18.04
+
+    steps:
+    - name: Install linters
+      run: |
+        pip3 install flake8 black isort
+    - name: Lint with flake8
+      run: |
+        flake8 .
+    - name: Lint with isort
+      run: |
+        isort --check-only -rc .
+    - name: Lint with black
+      run: |
+        black --check --diff .
