@@ -1,16 +1,13 @@
-from contextlib import closing
 import base64
-import json
 import os
 import os.path
+import sqlite3
 import subprocess
 import tempfile
 import time
-
-import sqlite3
+from contextlib import closing
 
 import pytest
-
 import requests
 
 from powerdns_auth_proxy import create_app
@@ -47,7 +44,7 @@ def client():
     [user:demo-example-org]
     key = dd70d1b0eccd79a0cf5d79ddf6672dce
     allow-suffix-creation = example.org. .example.test.
-    
+
     [user:demo-example-net]
     key = a70f4f5fe78ea2e89b53c8b3ee133fdf
     allow-suffix-creation = example.net.

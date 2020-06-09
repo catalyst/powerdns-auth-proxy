@@ -22,21 +22,21 @@ More information about the API specification is available here: <https://doc.pow
 Michael Fincham <michael.fincham@catalyst.net.nz>
 """
 
-from flask import Flask
-
 import configparser
+
+from flask import Flask
 
 
 def split_config_values(config, section_pattern):
     """
     This turns:
-    
+
     [user:foo]
     key=bar
     baz=qux thud
-    
+
     In to:
-    
+
     {'foo': {'key': 'bar', 'baz': ['qux', 'thud']}}
     """
 

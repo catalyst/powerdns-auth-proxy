@@ -1,14 +1,11 @@
-from flask import Blueprint, current_app, Response, g, request, stream_with_context
-
-from werkzeug.exceptions import Forbidden, BadRequest, NotFound
-
-from requests import Request, Session
-from requests.structures import CaseInsensitiveDict
-
-from functools import wraps
-import configparser
 import hmac
 import json
+from functools import wraps
+
+from flask import Blueprint, Response, current_app, g, request
+from requests import Request, Session
+from requests.structures import CaseInsensitiveDict
+from werkzeug.exceptions import Forbidden, NotFound
 
 bp = Blueprint("proxy", __name__, url_prefix="/api")
 
@@ -257,7 +254,7 @@ def zone_list():
                     and requested_name.lower() == suffix.lower()
                 ):
                     allowed = True
-            if allowed != True:
+            if allowed is not True:
                 raise Forbidden
 
         g.json = sanitise_metadata_updates(g.json, current_app.config["PDNS"])

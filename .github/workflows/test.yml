@@ -24,6 +24,7 @@ jobs:
     runs-on: ubuntu-18.04
 
     steps:
+    - uses: actions/checkout@v2
     - name: Install linters
       run: |
         pip3 install setuptools flake8 black isort
