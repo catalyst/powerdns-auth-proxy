@@ -15,7 +15,7 @@ if not packages:
 setuptools.setup(
     name="powerdns-auth-proxy",
     version=0.1,
-    description="",
+    description="Authenticating proxy for PowerDNS's HTTP API",
     long_description="",
     author="Catalyst OpsDev",
     author_email="opsdev@catalyst.net.nz",
@@ -25,7 +25,6 @@ setuptools.setup(
     zip_safe=False,
     classifiers=[
         "Development Status :: 2 - Pre-Alpha",
-        "Intended Audience :: Developers",
         "Natural Language :: English",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.6",
