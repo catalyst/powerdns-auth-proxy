@@ -1,0 +1,39 @@
+name: Lint & Test
+
+on:
+  - push
+  - pull_request
+
+jobs:
+  test:
+
+    runs-on: ubuntu-16.04
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install dependencies
+      run: |
+        sudo apt-get update && DEBIAN_FRONTEND=noninteractive sudo apt-get install --yes --quiet pdns-server pdns-backend-sqlite3 python3 python3-pip
+        pip3 install setuptools
+        pip3 install . -r requirements-dev.txt
+    - name: Test with pytest
+      run: |
+        python3 -m pytest -v
+  lint:
+
+    runs-on: ubuntu-18.04
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install linters
+      run: |
+        pip3 install setuptools flake8 black isort
+    - name: Lint with flake8
+      run: |
+        python3 -m flake8 .
+    - name: Lint with isort
+      run: |
+        python3 -m isort --check-only -rc .
+    - name: Lint with black
+      run: |
+        python3 -m black --check --diff .
