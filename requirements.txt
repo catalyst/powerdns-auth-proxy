@@ -1,3 +1,0 @@
-Flask~=1.0
-requests~=2.0
-Flask-SimpleLDAP~=1.0
