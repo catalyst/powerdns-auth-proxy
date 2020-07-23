@@ -27,7 +27,6 @@ import configparser
 from flask import Flask
 
 
-
 def split_config_values(config, section_pattern):
     """
     This turns:
@@ -64,7 +63,7 @@ def create_app(configuration=None):
     users = split_config_values(config, "user:")
     pdns = split_config_values(config, "pdns")[""]
     ldap = split_config_values(config, "ldap")[""]
-    
+
     app.config.from_mapping(
         PDNS=pdns, USERS=users, LDAP=ldap,
     )
