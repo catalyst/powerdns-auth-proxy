@@ -23,30 +23,6 @@ servers = [
 ]
 
 
-def _monkey_patch_openldap_string_flask_simpleldap_1_2_0_issue_44(ldap_instance):
-    import ldap
-
-    def bind_user(self, username, password):
-        user_dn = self.get_object_details(user=username, dn_only=True)
-
-        if user_dn is None:
-            return
-        try:
-            if type(user_dn) == bytes:
-                user_dn = user_dn.decode('utf-8')
-
-            conn = self.initialize
-            conn.simple_bind_s(user_dn, password)
-            return True
-        except ldap.LDAPError:
-            return
-
-    import types
-    ldap_instance.bind_user = types.MethodType(bind_user, ldap_instance)
-
-    return ldap_instance
-
-
 # Decorators for views
 def json_request(f):
     """
@@ -146,7 +122,7 @@ def authenticate(f):
             current_app.config['LDAP_GROUP_MEMBER_FILTER'] = current_app.config['LDAP']['group_member_filter']
             current_app.config['LDAP_GROUP_MEMBER_FILTER_FIELD'] = current_app.config['LDAP']['group_member_filter_field']
 
-            ldap = _monkey_patch_openldap_string_flask_simpleldap_1_2_0_issue_44(LDAP(current_app))
+            ldap = LDAP(current_app)
         elif (
             authentication_method not in ("key", "basic")
             or username not in current_app.config["USERS"]
