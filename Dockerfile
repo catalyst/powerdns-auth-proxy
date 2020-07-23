@@ -6,7 +6,7 @@ RUN apk add --no-cache \
       openldap-dev
 
 COPY powerdns_auth_proxy /pdns-auth-proxy/powerdns_auth_proxy
-COPY requirements.txt /pdns-auth-proxy/requirements.txt
+COPY setup.py /pdns-auth-proxy/setup.py
 COPY proxy.ini /pdns-auth-proxy/proxy.ini
 COPY supervisord.conf /etc/supervisord.conf
 
