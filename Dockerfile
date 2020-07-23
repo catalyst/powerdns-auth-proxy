@@ -11,7 +11,7 @@ COPY proxy.ini /pdns-auth-proxy/proxy.ini
 COPY supervisord.conf /etc/supervisord.conf
 
 WORKDIR /pdns-auth-proxy
-RUN pip install -r requirements.txt \
+RUN pip install . \
     && pip install waitress
 
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]

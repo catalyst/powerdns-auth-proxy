@@ -6,6 +6,7 @@ import setuptools
 requirements = [
     "Flask~=1.0",
     "requests~=2.0",
+    "Flask-SimpleLDAP~=1.4"
 ]
 
 packages = setuptools.find_packages(where="./", include=["powerdns_auth_proxy"])
