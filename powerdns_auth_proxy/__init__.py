@@ -22,9 +22,10 @@ More information about the API specification is available here: <https://doc.pow
 Michael Fincham <michael.fincham@catalyst.net.nz>
 """
 
+import configparser
+
 from flask import Flask
 
-import configparser
 
 
 def split_config_values(config, section_pattern):
@@ -41,7 +42,7 @@ def split_config_values(config, section_pattern):
     """
 
     return {
-        section[len(section_pattern):]: {
+        section[len(section_pattern) :]: {
             key.lower(): (value.split() if " " in value else value)
             for key, value in config.items(section)
         }
@@ -60,17 +61,16 @@ def create_app(configuration=None):
     else:
         config.read("proxy.ini")
 
-    users = split_config_values(config, 'user:')
-    pdns = split_config_values(config, 'pdns')['']
-    ldap = split_config_values(config, 'ldap')['']
-
+    users = split_config_values(config, "user:")
+    pdns = split_config_values(config, "pdns")[""]
+    ldap = split_config_values(config, "ldap")[""]
+    
     app.config.from_mapping(
-        PDNS=pdns,
-        USERS=users,
-        LDAP=ldap,
+        PDNS=pdns, USERS=users, LDAP=ldap,
     )
 
     from . import proxy
+
     app.register_blueprint(proxy.bp)
 
     return app
