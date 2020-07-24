@@ -3,6 +3,7 @@ import json
 from functools import wraps
 
 from flask import Blueprint, Response, current_app, g, request
+from flask_simpleldap import LDAP
 from requests import Request, Session
 from requests.structures import CaseInsensitiveDict
 from werkzeug.exceptions import Forbidden, NotFound
@@ -21,12 +22,12 @@ servers = [
     }
 ]
 
-## Decorators for views
 
-
+# Decorators for views
 def json_request(f):
     """
-    If the request contains valid JSON then store that in "g" to be used later. For compatbility with various things (like traefik), don't require the JSON content type.
+    If the request contains valid JSON then store that in "g" to be used later.
+    For compatibility with various things (like traefik), don't require the JSON content type.
     """
 
     @wraps(f)
@@ -71,6 +72,7 @@ def authenticate(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         auth = request.authorization
+        ldap = None
 
         authentication_method = ""
 
@@ -85,12 +87,61 @@ def authenticate(f):
                     {"WWW-Authenticate": 'Basic realm="PowerDNS API"'},
                 )
 
+        elif "X-LDAP-Auth" in request.headers:
+            if not current_app.config["LDAP"]["enabled"]:
+                return Response(
+                    "LDAP not enabled for authentication",
+                    406,
+                    {"WWW-Authenticate": 'Basic realm="PowerDNS API"'},
+                )
+            else:
+                try:
+                    username, password = request.headers["X-LDAP-Auth"].split(":", 1)
+                    authentication_method = "ldap"
+                except:
+                    return Response(
+                        "Access denied",
+                        401,
+                        {"WWW-Authenticate": 'Basic realm="PowerDNS API"'},
+                    )
+
         elif auth:
             username = auth.username
             password = auth.password
             authentication_method = "basic"
 
-        if (
+        if authentication_method == "ldap":
+            current_app.config["LDAP_HOST"] = current_app.config["LDAP"]["host"]
+            current_app.config["LDAP_PORT"] = current_app.config["LDAP"].get(
+                "port", 389
+            )
+            current_app.config["LDAP_SCHEMA"] = current_app.config["LDAP"].get(
+                "protocol", "ldap"
+            )
+            current_app.config["LDAP_USE_SSL"] = current_app.config["LDAP"].get(
+                "use_ssl", False
+            )
+            current_app.config["LDAP_OPENLDAP"] = current_app.config["LDAP"].get(
+                "openldap", False
+            )
+            current_app.config["LDAP_OBJECTS_DN"] = current_app.config["LDAP"].get(
+                "objects_dn", "distinguishedName"
+            )
+            current_app.config["LDAP_BASE_DN"] = current_app.config["LDAP"]["base_dn"]
+            current_app.config["LDAP_USERNAME"] = current_app.config["LDAP"]["bind_dn"]
+            current_app.config["LDAP_PASSWORD"] = current_app.config["LDAP"]["password"]
+            current_app.config["LDAP_USER_OBJECT_FILTER"] = current_app.config["LDAP"][
+                "user_object_filter"
+            ]
+            current_app.config["LDAP_GROUP_MEMBER_FILTER"] = current_app.config["LDAP"][
+                "group_member_filter"
+            ]
+            current_app.config["LDAP_GROUP_MEMBER_FILTER_FIELD"] = current_app.config[
+                "LDAP"
+            ]["group_member_filter_field"]
+
+            ldap = LDAP(current_app)
+        elif (
             authentication_method not in ("key", "basic")
             or username not in current_app.config["USERS"]
             or not hmac.compare_digest(
@@ -100,8 +151,28 @@ def authenticate(f):
             return Response(
                 "Access denied", 401, {"WWW-Authenticate": 'Basic realm="PowerDNS API"'}
             )
-        g.user = current_app.config["USERS"][username]
-        g.username = username
+
+        if ldap:
+            try:
+                test = ldap.bind_user(username, password)
+
+                if test is None or password == "":
+                    return Response(
+                        "Access denied",
+                        401,
+                        {"WWW-Authenticate": 'Basic realm="PowerDNS API"'},
+                    )
+                else:
+                    # g.user = ldap.get_object_details(username)['pdns-allow-suffix-creation']
+                    # custom value
+                    g.user = {"allow-suffix-creation": "example.com."}
+                    g.username = username
+            except KeyError:
+                pass
+        else:
+            g.user = current_app.config["USERS"][username]
+            g.username = username
+
         return f(*args, **kwargs)
 
     return decorated_function
@@ -162,7 +233,8 @@ def json_or_none(response):
 @json_response
 def api():
     """
-    GET: The version returned is "1" for compability but we add an extra field to show that this isn't the official PowerDNS API.
+    GET: The version returned is "1" for compability but we add an extra field to show
+         that this isn't the official PowerDNS API.
     """
     return [
         {
@@ -201,7 +273,8 @@ def server_object(server_id):
 @json_response
 def configuration():
     """
-    GET: Retrieve a list of configuration items for the server. Currently returns empty, as we don't want to expose the global backend configuration.
+    GET: Retrieve a list of configuration items for the server.
+         Currently returns empty, as we don't want to expose the global backend configuration.
     """
     return []
 
@@ -211,7 +284,8 @@ def configuration():
 @json_response
 def statistics():
     """
-    GET: Retrieve a list of statistics about the server. Currently returns empty, as we don't want to expose the global backend statistics.
+    GET: Retrieve a list of statistics about the server.
+         Currently returns empty, as we don't want to expose the global backend statistics.
     """
     return []
 

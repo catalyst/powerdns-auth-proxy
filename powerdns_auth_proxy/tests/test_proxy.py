@@ -33,6 +33,7 @@ def basic_auth_header(client):
 
 @pytest.fixture
 def client():
+    # TODO: implement LDAP tests
     test_config = """
     [pdns]
     api-key = 7128ae9eb680a14390ee22a988a9d01a
@@ -40,6 +41,9 @@ def client():
     override-soa_edit_api = INCEPTION-INCREMENT
     override-nameservers = ns1.example.com. ns2.example.com. ns3.example.com. ns4.example.com.
     override-kind = MASTER
+
+    [ldap]
+    enabled = False
 
     [user:demo-example-org]
     key = dd70d1b0eccd79a0cf5d79ddf6672dce

@@ -102,4 +102,6 @@ ENV/
 # mypy
 .mypy_cache/
 
-.vscode/
+# vscode
+.vscode
+pdns-auth-proxy.code-workspace

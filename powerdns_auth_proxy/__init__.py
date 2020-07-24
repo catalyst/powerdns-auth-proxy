@@ -53,7 +53,7 @@ def split_config_values(config, section_pattern):
 def create_app(configuration=None):
     app = Flask(__name__, instance_relative_config=True)
 
-    config = configparser.ConfigParser()
+    config = configparser.ConfigParser(interpolation=None)
 
     if configuration:
         config.read_string(configuration)
@@ -62,8 +62,10 @@ def create_app(configuration=None):
 
     users = split_config_values(config, "user:")
     pdns = split_config_values(config, "pdns")[""]
+    ldap = split_config_values(config, "ldap")[""]
+
     app.config.from_mapping(
-        PDNS=pdns, USERS=users,
+        PDNS=pdns, USERS=users, LDAP=ldap,
     )
 
     from . import proxy
