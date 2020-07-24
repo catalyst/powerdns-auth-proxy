@@ -12,6 +12,7 @@ import requests
 
 from powerdns_auth_proxy import create_app
 
+# TODO: implement LDAP tests
 
 def api_key_header(client):
     """
@@ -40,6 +41,9 @@ def client():
     override-soa_edit_api = INCEPTION-INCREMENT
     override-nameservers = ns1.example.com. ns2.example.com. ns3.example.com. ns4.example.com.
     override-kind = MASTER
+
+    [ldap]
+    enabled = False
 
     [user:demo-example-org]
     key = dd70d1b0eccd79a0cf5d79ddf6672dce
