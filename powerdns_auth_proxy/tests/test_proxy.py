@@ -12,7 +12,6 @@ import requests
 
 from powerdns_auth_proxy import create_app
 
-# TODO: implement LDAP tests
 
 def api_key_header(client):
     """
@@ -34,6 +33,7 @@ def basic_auth_header(client):
 
 @pytest.fixture
 def client():
+    # TODO: implement LDAP tests
     test_config = """
     [pdns]
     api-key = 7128ae9eb680a14390ee22a988a9d01a
