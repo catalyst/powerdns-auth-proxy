@@ -105,3 +105,6 @@ ENV/
 # vscode
 .vscode
 pdns-auth-proxy.code-workspace
+
+# idea
+.idea
