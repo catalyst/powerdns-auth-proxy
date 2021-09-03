@@ -65,7 +65,9 @@ def create_app(configuration=None):
     ldap = split_config_values(config, "ldap")[""]
 
     app.config.from_mapping(
-        PDNS=pdns, USERS=users, LDAP=ldap,
+        PDNS=pdns,
+        USERS=users,
+        LDAP=ldap,
     )
 
     from . import proxy
