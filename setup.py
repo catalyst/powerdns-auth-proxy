@@ -4,7 +4,7 @@
 import setuptools
 
 requirements = [
-    "Flask~=1.0",
+    "Flask~=2.0",
     "requests~=2.0",
 ]
 
